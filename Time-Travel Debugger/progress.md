@@ -2,3 +2,4 @@
 current:
     setup wsl ubuntu.
     understanding server.cpp
+    stack implementation

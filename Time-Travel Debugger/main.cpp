@@ -14,7 +14,6 @@
 #include <fstream>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <cstdint>
 #include <cstdio>
 using namespace std;
 
@@ -38,33 +37,58 @@ class Stack
     {
         T data;
         Node *next;
+
+        Node(const T& d, Node* ptr) :data(d), next(ptr) {}
     };
     Node *top;
-    int32_t count;
+    int32_t count; 
 
 public:
     // Implement these functions:
-    Stack()
-    { // initialize the stack
-    }
+
+	Stack():top(nullptr),count(0){}
+
     void push(const T &val)
     {
-
-        // pushes the value on the stack if max limit is not reached yet.
+		if(count<=0){
+			top=new Node(val,nullptr);
+            count++;
+		}if(count<=MAX_STACK_DEPTH){
+            top=new Node(val,top);
+            count++;
+        }
+        else {
+            throw "Stack overflow";
+        }
     }
     T pop()
     {
-        // pop the top value on the stack
+        if (count > 0) {
+            Node* a = top->next;
+            T value = top->data;
+            delete top;
+            top = a;
+            count--;
+            return value;
+        }
+        else {
+            throw "Stack underflow";
+        }
     }
+    
     T &peek()
     {
-        // returns the top value on the stack
+        if(count>0) return top->data;
+        throw "Stack underflow";
     }
     bool isEmpty()
     {
+        if(count<=0)return 1;
+        return 0;
     }
     int32_t depth()
     {
+        return count;
     }
     int32_t snapshot_into(T out[], int32_t maxLen)
     {
