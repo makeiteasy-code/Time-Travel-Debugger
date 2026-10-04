@@ -180,18 +180,56 @@ struct PendingPatch
 // PASS 0x0: READING source.bin + VALIDITY CHECK
 bool readSourceLine(ifstream &in, string &out)
 {
-    // reads the next nonblank line
+    if(getline(in,out))return 1;
+    return 0
 }
 string firstWord(const string &line)
 {
-    // returns first word from the input string
+    string word;
+    for(int i =0,line[i]!=' '||line[i]!=0,i++)word+=line[i];
+    return word;
+    
 }
 string secondWord(const string &line)
 {
-    // returns the second word
+    string word2;
+    i=0;
+    while(line[i]!=' '){
+        i++;
+    }
+    while(line[i]!=' '||line[i]!=0){
+        word2+=line[i];
+        i++;
+    }
+    return word2;
 }
 bool validateProgram(const char *sourcePath)
 {
+    ifstream in(sourcePath);
+    bool flag=0;
+    string w1;
+    string w2;
+    while(!in.eof()){
+        string line;
+        if(!readSourceLine(in,line))break;
+        
+        w1=firstWord(line);
+        
+        if(w1=="func"&&(!flag)) {
+            flag=1;
+            w2=secondWord(line);
+        }
+        else if(w1=="func"&& flag) return 0;
+        
+        if(w1=="call"&&flag&&w2==secondWord(line))return 0;
+
+        if(w1=="func_end"&&flag){
+            flag=0;
+        }
+
+    }
+    if(flag)return 0;
+    return 1;
     // for each func defined there should be exactly one func_end and no nested funcs allowed - 
 }
 
