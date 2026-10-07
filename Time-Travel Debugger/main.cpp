@@ -53,7 +53,9 @@ public:
 		if(count<=0){
 			top=new Node(val,nullptr);
             count++;
-		}if(count<=MAX_STACK_DEPTH){
+            return;
+        }
+        if(count<MAX_STACK_DEPTH){
             top=new Node(val,top);
             count++;
         }
@@ -94,6 +96,13 @@ public:
     {
         // copies every frame, top to bottom in the array given as a parameter
         // this is what buildSnapshot() call, returns count written
+        Node* temp=top;
+        for(int i=0;i<maxLen&&i<count;i++){
+            out[i]=temp->data;
+            temp=temp->next;
+        }
+        if(count>maxLen)return maxLen;
+        return count;
     }
 };
 
@@ -105,7 +114,10 @@ struct TimelineNode
     Snapshot *data;
     TimelineNode *next;
     TimelineNode *prev;
+
+    TimelineNode(Snapshot*s):data(s),next(nullptr),prev(nullptr){}
 };
+
 class Timeline
 {
     TimelineNode *head, *tail;
@@ -113,18 +125,34 @@ class Timeline
 
 public:
     // Implement these functions
-    Timeline()
-    {
-    }
+    Timeline():head(nullptr),tail(nullptr),stepCount(0){}
     void record(Snapshot *s)
     {
-        // add record in the timeline
+        if (head == nullptr) {
+           head = tail = new TimelineNode(s);
+           stepCount++;
+           return;
+        }
+        if(head==tail){
+            tail=new TimelineNode(s);
+            head->next=tail;
+            tail->prev=head;
+            stepCoun++;
+            return;
+        }
+        TimelineNode* temp = tail;
+        tail = new TimelineNode(s);
+        temp->next = tail;
+        tail->prev=temp;
+        stepCount++;
     }
     TimelineNode *begin()
     {
+        return head;
     }
     int32_t getStepCount()
     {
+        return stepCount;
     }
 };
 
@@ -180,24 +208,29 @@ struct PendingPatch
 // PASS 0x0: READING source.bin + VALIDITY CHECK
 bool readSourceLine(ifstream &in, string &out)
 {
-    if(getline(in,out))return 1;
-    return 0
+   do{
+        if(getline(in,out)&&!(out==""))
+            return 1;
+    } while(out=="");
+    return 0;
 }
 string firstWord(const string &line)
 {
     string word;
-    for(int i =0,line[i]!=' '||line[i]!=0,i++)word+=line[i];
+    for(int i =0;line[i]!=' '&&line[i]!=0;i++)word+=line[i];
     return word;
     
 }
 string secondWord(const string &line)
 {
     string word2;
-    i=0;
-    while(line[i]!=' '){
+    int i=0;
+    while(line[i]!=' '&&line[i]!=0){
         i++;
     }
-    while(line[i]!=' '||line[i]!=0){
+    if(line[i]=="")return '\0';
+    i++;
+    while(line[i]!=' '&&line[i]!=""){
         word2+=line[i];
         i++;
     }
@@ -218,11 +251,10 @@ bool validateProgram(const char *sourcePath)
         if(w1=="func"&&(!flag)) {
             flag=1;
             w2=secondWord(line);
+            if(w2=="")return 0;
         }
         else if(w1=="func"&& flag) return 0;
-        
-        if(w1=="call"&&flag&&w2==secondWord(line))return 0;
-
+        else if(w1=="func_end"&&(!flag))return 0;
         if(w1=="func_end"&&flag){
             flag=0;
         }
