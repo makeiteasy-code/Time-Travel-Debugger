@@ -9,3 +9,6 @@ tomorrow:
 
 7/8-10-26
     correcting code and implementing doubly linked list
+
+8-10-26
+    resolve implementation
