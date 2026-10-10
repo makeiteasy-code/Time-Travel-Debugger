@@ -1,6 +1,6 @@
 4-10-26
 current:
-    setup wsl ubuntu.
+    (before 4-10-26)setup wsl ubuntu.
     understanding server.cpp
     stack implementation
     completing pass 0x0
@@ -14,5 +14,6 @@ tomorrow:
     resolve implementation
 
 10-10-26
-    resolving resolve
+    (9/10)resolving resolve
     tokenizing line
+    snapshotting
