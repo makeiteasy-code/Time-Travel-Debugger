@@ -17,3 +17,4 @@ tomorrow:
     (9/10)resolving resolve
     tokenizing line
     snapshotting
+    correcting tokenline and snap function

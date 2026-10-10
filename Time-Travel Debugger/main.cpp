@@ -97,11 +97,11 @@ public:
         // copies every frame, top to bottom in the array given as a parameter
         // this is what buildSnapshot() call, returns count written
         Node* temp=top;
-        for(int i=0;i<maxLen;i++){
+        for(int i=0;i<maxLen&&i<count;i++){
             out[i]=temp->data;
             temp=temp->next;
         }
-        
+        if(count>maxLen)return count;
         return maxLen;
     }
 };
@@ -413,7 +413,7 @@ int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
     tokens[count].text=word;
     count++;
 
-    if(word==func_end)return count;
+    if(word=="func_end")return count;
     
     word="";
     while(line[i]==' ')i++;
@@ -438,8 +438,8 @@ int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
 }
 Snapshot *buildSnapshot(Stack<Frame> &callStack)
 {
-    snapshot snapsnap=new snapshot;
-    snapsnap->stackDepth=callStack->snapshot_into(snapsanp->callStack,callStack.depth());
+    Snapshot* snapsnap=new Snapshot;
+    snapsnap->stackDepth=callStack.snapshot_into(snapsnap->callStack,MAX_STACK_DEPTH);
     return snapsnap;
     // build the snapshot based on the callStack given
 }
