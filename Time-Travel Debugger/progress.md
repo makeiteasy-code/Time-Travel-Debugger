@@ -12,3 +12,7 @@ tomorrow:
 
 8-10-26
     resolve implementation
+
+10-10-26
+    resolving resolve
+    tokenizing line

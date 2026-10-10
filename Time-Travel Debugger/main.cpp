@@ -1,4 +1,4 @@
-/ ======================= TIME-TRAVEL DEBUGGER - SERVER TEMPLATE =======================
+// ======================= TIME-TRAVEL DEBUGGER - SERVER TEMPLATE =======================
 
 // Pipeline this file implements, top to bottom:
 //   0. Receive  -- stream the client's .trace bytes straight to source.bin on disk
@@ -137,7 +137,7 @@ public:
             tail=new TimelineNode(s);
             head->next=tail;
             tail->prev=head;
-            stepCoun++;
+            stepCount++;
             return;
         }
         TimelineNode* temp = tail;
@@ -228,9 +228,9 @@ string secondWord(const string &line)
     while(line[i]!=' '&&line[i]!=0){
         i++;
     }
-    if(line[i]=="")return '\0';
+    if(line[i]==0)return "";
     i++;
-    while(line[i]!=' '&&line[i]!=""){
+    while(line[i]!=' '&&line[i]!=0){
         word2+=line[i];
         i++;
     }
@@ -286,6 +286,7 @@ int64_t readResolveRecord(FILE *f, string &outText)
     fread(&offset,sizeof(int64_t),1,f);
     fread(&size,sizeof(int32_t),1,f);
     char t;
+    outText="";
     for(int32_t i =0;i<size;i++){
         fread(&t,sizeof(char),1,f);
         outText+=t;
@@ -301,13 +302,14 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
     int32_t patchCount = 0;
 
     int64_t offsetField=0;
+    int64_t mainOffset=0;
 
     ifstream in(sourcePath);
     if(!in){
         throw "source file not found";
     }
 
-    File* out=fopen(resolveBinPath,"wb");
+    FILE* out=fopen(resolveBinPath,"wb");
     if(!out){
         throw "resolve file not found";
     }
@@ -321,7 +323,10 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
         w2=secondWord(line);
         
         if(w1=="func"){
-            if(w2=="main")mainFlag=1;
+            if(w2=="main"){
+                mainFlag=1;
+                mainOffset=offsetField;
+            }
             funcArray[funcCount].funcName=secondWord(line);
             funcArray[funcCount++].byteOffsetInResolveBin=offsetField;
             int64_t _offset=writeResolveRecord(out,offsetField,line);    
@@ -333,7 +338,7 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
                 if(w2==funcArray[i].funcName){
                     int64_t _offset=writeResolveRecord(out,funcArray[i].byteOffsetInResolveBin,line);    
                     offsetField+=8+4+line.size();
-                    f=1;            
+                    f=1;
                     break;
                 }
             }
@@ -348,34 +353,32 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
             int64_t _offset=writeResolveRecord(out,offsetField,line);    
             offsetField+=8+4+line.size();
         }
-        //main check
-        if(!mainFlag)
-        //patching
-        bool flag=0;
-        for(int i=0;i<patchCount;i++){
-            for(int j=0;j<funcCount;j++){
-                if(patches[i].targetFuncName==funcArray[j].funcName){
-                    fseek(out,patches[i].byteOffsetOfOffsetField,SEEK_SET);
-                    fwrite(funcArray[j],byteOffsetInResolveBin,sizeof(int64_t),1,out);
-                    if(flag==0)flag=1;
-                }
-                if(flag)flag=0;
-                else throw "undeclared function called";
-            }
-
-
-        }
-
-        
-
-
-
-
-        fclose(out);
     }
+    //main check
+    if(!mainFlag)throw "main not found";
+    //patching
+    bool flag=0;
+    for(int i=0;i<patchCount;i++){
+        for(int j=0;j<funcCount;j++){
+            if(patches[i].targetFuncName==funcArray[j].funcName){
+                fseek(out,patches[i].byteOffsetOfOffsetField,SEEK_SET);
+                fwrite(&funcArray[j].byteOffsetInResolveBin,sizeof(int64_t),1,out);
+                flag=1;
+                break;
+            }
+        }
+        if(flag)flag=0;
+        else throw "undeclared function called";
+
+
+    }
+
     
 
+    fclose(out);
+    
 
+    return mainOffset;
 
     // Every source line becomes one record holding the raw line, as-is.
     // resolve() only PEEKS at the leading word(s) -- enough to spot FUNC
@@ -401,6 +404,33 @@ struct Token
 };
 int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
 {
+    int i=0;
+    int count=0;
+    string word="";
+    while(line[i]==' ')i++;
+    while(line[i]!=' '&&line[i]!=0)word+=line[i++];
+    tokens[count].type=KEYWORD;
+    tokens[count].text=word;
+    count++;
+
+    if(word==func_end)return count;
+    
+    word="";
+    while(line[i]==' ')i++;
+    while(line[i]!=' '&&line[i]!=0)word+=line[i++];
+    tokens[count].type=IDENTIFIER;
+    tokens[count].text=word;
+    count++;
+    while(line[i]!=0){
+        word="";
+        while(line[i]==' ')i++;
+        while(line[i]!=' ')word+=line[i++];
+        tokens[count].type=PARAM;
+        tokens[count].text=word;
+        count++;
+        if(count>=maxTokens)return count;
+    }
+    return count;
     // first word is always a instruction keyword
     // instruction set = [func, func_end, call, set, add, sub, mul and div]
     // next word is identifier like name of a function, variable name
@@ -433,12 +463,11 @@ void writeTdbg(Timeline &timeline, const char *tdbgPath)
 int32_t main()
 {
 
+    cout<<"compile starting"<<endl;
     if (!validateProgram("source.bin"))
     {
-        // send an error response instead of a .tdbg file
         return 1;
     }
-
     int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
 
     Timeline timeline;
