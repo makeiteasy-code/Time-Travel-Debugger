@@ -18,3 +18,6 @@ tomorrow:
     tokenizing line
     snapshotting
     correcting tokenline and snap function
+
+11/12-10-26
+    implementing executeprogram function

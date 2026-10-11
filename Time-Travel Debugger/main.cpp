@@ -101,7 +101,7 @@ public:
             out[i]=temp->data;
             temp=temp->next;
         }
-        if(count>maxLen)return count;
+        if(count<=maxLen)return count;
         return maxLen;
     }
 };
@@ -167,9 +167,11 @@ struct Frame
     string func_name;
     int32_t argc;
     Variable argv[MAX_VARS_PER_FRAME];
-    int32_t returnLine;
+    int64_t returnLine;
     Variable locals[MAX_VARS_PER_FRAME];
     int32_t localCount;
+    
+    Frame(string name,int32_t argC=0,int64_t offset=-1,int32_t localC=0):func_name(name),argc(argC),returnLine(offset),localCount(localC){}
 };
 struct Snapshot
 {
@@ -407,6 +409,7 @@ int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
     int i=0;
     int count=0;
     string word="";
+    if(count>=maxTokens)return count;
     while(line[i]==' ')i++;
     while(line[i]!=' '&&line[i]!=0)word+=line[i++];
     tokens[count].type=KEYWORD;
@@ -416,6 +419,7 @@ int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
     if(word=="func_end")return count;
     
     word="";
+    if(count>=maxTokens)return count;
     while(line[i]==' ')i++;
     while(line[i]!=' '&&line[i]!=0)word+=line[i++];
     tokens[count].type=IDENTIFIER;
@@ -423,12 +427,12 @@ int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
     count++;
     while(line[i]!=0){
         word="";
+        if(count>=maxTokens)return count;
         while(line[i]==' ')i++;
-        while(line[i]!=' ')word+=line[i++];
+        while(line[i]!=' '&&line[i]!=0)word+=line[i++];
         tokens[count].type=PARAM;
         tokens[count].text=word;
         count++;
-        if(count>=maxTokens)return count;
     }
     return count;
     // first word is always a instruction keyword
@@ -445,12 +449,275 @@ Snapshot *buildSnapshot(Stack<Frame> &callStack)
 }
 void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &timeline)
 {
-    // initialize the call stack
-    // make the main frame
-    // push main frame on the call stack
+    FILE* in = fopen(resolveBinPath,"rb");
+    if(in==nullptr)throw "resolve file not found";
+    if(fseek(in,mainOffset,SEEK_SET))throw "main not found in resolve file";
 
-    // implementation:
-    // execute line by line, and according to the keyword perform action
+    Stack<Frame> callStack;
+
+    
+    Frame mainFrame;
+    mainFrame.func_name="main";
+    mainFrame.argc=0;
+    mainFrame.localCount=0;
+    mainFrame.returnLine=-1;
+
+    
+    callStack.push(mainFrame);
+    
+    string line;
+    readResolveRecord(in,line);
+    cout<<line<<endl;
+    
+    Token tokens[MAX_TOKENS];
+    int32_t tokenCount=0;
+    while(true){
+        int64_t offsetbyte = readResolveRecord(in,line);
+        tokenizeLine(line,tokens,MAX_TOKENS);
+        string key =tokens[0].text;
+        if(key=="set"){
+            if(token!=3)throw "wrong set instruction";
+            Frame &current=callStack.peek();
+            string var=tokens[1].text;
+            int32_t value=stoi(tokens[2].text);
+            bool flag=0;
+            for(int i=0;i<current.argc;i++){
+                if(current.argv[i].name==var){
+                    current.argv[i].value=value;
+                    flag=1;
+                    break;
+                }
+            }
+            if(flag)continue;
+            for(int i=0;i<current.localCount;i++){
+                if(current.locals[i].name==var){
+                    current.locals[i].value=value;
+                    flag=1;
+                    break;
+                }
+            }
+            if(flag)continue;
+            if(current.localCount>=MAX_VARS_PER_FRAME)throw "cant add more variable";
+            current.locals[current.localCount].name=var;
+            current.locals[current.localCount++].value=value;
+
+        }
+        else if(key=="add"){
+            if(token!=3)throw "wrong add instruction";
+            Frame &current=callStack.peek();
+            string var1=tokens[1].text;
+            string var2=tokens[2].text;
+            bool flag1=0;
+            bool flag2=0;
+            Variable* Var1;
+            Variable* Var2;
+            for(int i=0;i<current.argc;i++){
+                if(current.argv[i].name==var1){
+                    flag1=1;
+                    Var1= &current.argv[i];
+                }
+                if(current.argv[i].name==var2){
+                    Var2= &current.argv[i];
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+            if(flag1&&flag2){
+                Var1->value+=Var2->value;
+                continue;
+            }
+            for(int i=0;i<current.localCount;i++){
+                if(current.locals[i].name==var1){
+                    Var1= &current.locals[i];
+                    flag1=1;
+                }
+                if(current.locals[i].name==var2){
+                    Var2= &current.locals[i];
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+             if(flag1&&flag2){
+                Var1->value+=Var2->value;
+                continue;
+            }
+             if(!(flag1&&flag2)){
+                throw "Variabes not found";
+                
+            }
+
+        }
+        else if(key=="sub"){
+            if(token!=3)throw "wrong sub instruction";
+            Frame &current=callStack.peek();
+            string var1=tokens[1].text;
+            string var2=tokens[2].text;
+            bool flag1=0;
+            bool flag2=0;
+            Variable* Var1;
+            Variable* Var2;
+            for(int i=0;i<current.argc;i++){
+                if(current.argv[i].name==var1){
+                    flag1=1;
+                    Var1= &current.argv[i];
+                }
+                if(current.argv[i].name==var2){
+                    Var2= &current.argv[i];
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+            if(flag1&&flag2){
+                Var1->value-=Var2->value;
+                continue;
+            }
+            for(int i=0;i<current.localCount;i++){
+                if(current.locals[i].name==var1){
+                    Var1= &current.locals[i];
+                    flag1=1;
+                }
+                if(current.locals[i].name==var2){
+                    Var2= &current.locals[i];
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+             if(flag1&&flag2){
+                Var1->value-=Var2->value;
+                continue;
+            }
+             if(!(flag1&&flag2)){
+                throw "Variabes not found";
+                
+            }
+
+        }
+        else if(key=="mul"){
+            if(token!=3)throw "wrong add instruction";
+            Frame &current=callStack.peek();
+            string var1=tokens[1].text;
+            string var2=tokens[2].text;
+            bool flag1=0;
+            bool flag2=0;
+            Variable* Var1;
+            Variable* Var2;
+            for(int i=0;i<current.argc;i++){
+                if(current.argv[i].name==var1){
+                    flag1=1;
+                    Var1= &current.argv[i];
+                }
+                if(current.argv[i].name==var2){
+                    Var2= &current.argv[i];
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+            if(flag1&&flag2){
+                Var1->value*=Var2->value;
+                continue;
+            }
+            for(int i=0;i<current.localCount;i++){
+                if(current.locals[i].name==var1){
+                    Var1= &current.locals[i];
+                    flag1=1;
+                }
+                if(current.locals[i].name==var2){
+                    Var2= &current.locals[i];
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+            if(flag1&&flag2){
+                Var1->value*=Var2->value;
+                continue;
+            }
+             if(!(flag1&&flag2)){
+                throw "Variabes not found";
+                
+            }
+
+        }
+        else if(key=="div"){
+            if(token!=3)throw "wrong add instruction";
+            Frame &current=callStack.peek();
+            string var1=tokens[1].text;
+            string var2=tokens[2].text;
+            bool flag1=0;
+            bool flag2=0;
+            Variable* Var1;
+            Variable* Var2;
+            for(int i=0;i<current.argc;i++){
+                if(current.argv[i].name==var1){
+                    flag1=1;
+                    Var1= &current.argv[i];
+                }
+                if(current.argv[i].name==var2){
+                    Var2= &current.argv[i];
+                    if(current.argv[i].value==0)throw"IllEGAL OPERATION DIVIDING BY ZERO";
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+            if(flag1&&flag2){
+                Var1->value/=Var2->value;
+                continue;
+            }
+            for(int i=0;i<current.localCount;i++){
+                if(current.locals[i].name==var1){
+                    Var1= &current.locals[i];
+                    flag1=1;
+                }
+                if(current.locals[i].name==var2){
+                    Var2= &current.locals[i];
+                    if(current.argv[i].value==0)throw"IllEGAL OPERATION DIVIDING BY ZERO";
+                    flag2=1;
+                }
+                if(flag1&&flag2)break;
+            }
+             if(flag1&&flag2){
+                Var1->value/=Var2->value;
+                continue;
+            }
+             if(!(flag1&&flag2)){
+                throw "Variabes not found";
+                
+            }
+
+        }
+        else if(key=="func"){
+            continue;
+        }
+        else if(key=="func_end"){
+            
+        }
+        else if(key=="call"){
+            if(tokenCount<2) throw "invalid instruction";
+            int32_t value[tokenCount-2];
+            for(int i=0;i<tokenCount-1;i++){
+                value[i]=stoi(tokens[i+2].text);
+            }
+            fseek(in,offsetbyte,SEEK_SET);
+            int64_t offsetbyte = readResolveRecord(in,line);
+            tokenizeLine(line,tokens,MAX_TOKENS);
+            string functionName=tokens[1].text;
+            Frame temp(tokens[1],tokenCount-2,offsetbyte,0);
+            for(int i = 0; i<tokenCount-1;i++){
+
+            }
+            
+        }
+        else{
+            break;
+        }
+
+
+
+
+    }
+
+
+
+
 }
 
 // PASS 0x3: SERIALIZE TIMELINE
