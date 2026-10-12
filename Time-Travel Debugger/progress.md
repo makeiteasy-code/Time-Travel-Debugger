@@ -21,3 +21,6 @@ tomorrow:
 
 11/12-10-26
     implementing executeprogram function
+
+12-10-26
+    implementing tdbg

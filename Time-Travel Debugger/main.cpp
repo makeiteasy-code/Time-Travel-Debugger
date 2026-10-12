@@ -195,11 +195,23 @@ struct TTDBHeader
     int32_t version;
     int32_t stepCount;
     int64_t indexOffset;
+
+    TTDBHeader ():version(1),stepCount(0),indexOffset(0) {
+        magic[0]='T';
+        magic[1]='T';
+        magic[2]='D';
+        magic[3]='B';
+        
+    }
+    
+
 };
 void writeHeader(FILE *f, const TTDBHeader &h)
 {
     fwrite(h.magic, 1, 4, f);
     fwrite(&h.version, sizeof(int32_t), 1, f);
+    fwrite(&h.stepCount, sizeof(int32_t), 1, f);
+    fwrite(&h.indexOffset, sizeof(int64_t), 1, f);
 
     // placeholder for other two data members
 }
@@ -480,6 +492,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
         int64_t offsetbyte = readResolveRecord(in,line);
         tokenCount = tokenizeLine(line,tokens,MAX_TOKENS);
         string key =tokens[0].text;
+        timeline.record(buildSnapshot(callStack));
         if(key=="set"){
             if(tokenCount!=3)throw "wrong set instruction";
             Frame &current=callStack.peek();
@@ -764,8 +777,19 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
 // PASS 0x3: SERIALIZE TIMELINE
 void writeTdbg(Timeline &timeline, const char *tdbgPath)
 {
+    TTDBHeader header;
+    header.stepCount=timeline.getStepCount();
+    
+    File* ttdb = fopen(tdbgPath,"wb");
+    if(!ttdb) throw "sessoin file not found";
+
+    writeHeader(ttdb,header);
+
     // placeholder for header
+    
+    
     // index array of the size of stepcount from the timeline
+    
     // placing each snapshot in the file while maintaining the index(starting point of each nth snapshot)
     // after timeline add the index array i the file
     // update the header
