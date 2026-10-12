@@ -24,3 +24,4 @@ tomorrow:
 
 12-10-26
     implementing tdbg
+    completing tdbg

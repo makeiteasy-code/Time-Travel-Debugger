@@ -236,7 +236,7 @@ bool readSourceLine(ifstream &in, string &out)
    do{
         if(getline(in,out)&&!(out==""))
             return 1;
-    } while(out=="");
+    } while(out==""&&!in.eof());
     return 0;
 }
 string firstWord(const string &line)
@@ -489,6 +489,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
     Token tokens[MAX_TOKENS];
     int32_t tokenCount=0;
     while(true){
+        int64_t lineOffsetByte = ftell(in);
         int64_t offsetbyte = readResolveRecord(in,line);
         tokenCount = tokenizeLine(line,tokens,MAX_TOKENS);
         string key =tokens[0].text;
@@ -711,14 +712,43 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
             }
             
             int64_t callOffset=callStack.peek().returnLine;
-            callStack.pop();
+            Frame poped=callStack.pop();
+            Frame &current=callStack.peek();
+
             if(fseek(in,callOffset,SEEK_SET)) throw"cant go back to caller";
+
+            offsetbyte = readResolveRecord(in,line);
+            tokenCount = tokenizeLine(line,tokens,MAX_TOKENS);
+            
+            for(int i=0;i<poped.argc;i++){
+                bool flag=0;
+                for(int j=0;j<current.argc;j++){
+                    if(current.argv[j].name==tokens[i+2].text){
+                        current.argv[j].value=poped.argv[i].value;
+                        flag=1;
+                        break;
+                        
+                    }
+                }
+                if(flag)continue;
+                for(int j=0;j<current.localCount;j++){
+                    if(current.locals[j].name==tokens[i+2].text){
+                        current.locals[j].value=poped.argv[i].value;
+                        flag=1;
+                        break;
+                        
+                    }
+                }
+                if(!flag)throw "Call argument not found";
+            
+            }
+            
             
         }
         else if(key=="call"){
             if(tokenCount<2) throw "invalid instruction";
 
-            int32_t newArgV[MAX_VARS_PER_FRAME-2];
+            int32_t newArgV[MAX_VARS_PER_FRAME];
             int32_t newArgCount=0;
             bool flag=0;
             
@@ -746,13 +776,13 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
             
             int32_t previousCallTokenCount=tokenCount;
             
-            int64_t nextLineOffset=ftell(in);
+            
             if(fseek(in,offsetbyte,SEEK_SET))throw "function not found";
             offsetbyte = readResolveRecord(in,line);
             tokenCount=tokenizeLine(line,tokens,MAX_TOKENS);
             if(previousCallTokenCount!=tokenCount)throw"call paramerters dont match function parameter";
             
-            Frame temp(tokens[1].text,tokenCount-2,nextLineOffset,0);
+            Frame temp(tokens[1].text,tokenCount-2,lineOffsetByte,0);
             
             for(int i = 0; i<tokenCount-2;i++){
                 temp.argv[i].name=tokens[i+2].text;
