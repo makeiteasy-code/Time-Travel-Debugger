@@ -26,4 +26,5 @@ tomorrow:
     implementing tdbg
     completing tdbg
     fixing call issue
-    adding checks in pass0
+    adding checks in 
+    finalizing

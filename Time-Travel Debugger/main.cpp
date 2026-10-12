@@ -65,7 +65,7 @@ public:
             count++;
             return;
         }
-        if(count<MAX_STACK_DEPTH){
+        if(count<=MAX_STACK_DEPTH){
             top=new Node(val,top);
             count++;
         }
@@ -338,7 +338,7 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
     if(!out){
         throw "resolve file not found";
     }
-
+    
     string line,w1,w2;
     bool mainFlag=0;
     while(!in.eof()){
@@ -348,12 +348,13 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
         w2=secondWord(line);
         
         if(w1=="func"){
-            if(w2=="main"){
+            if(w2=="main"&&mainFlag==0){
                 mainFlag=1;
                 mainOffset=offsetField;
-            }
+            }else if(w2=="main"&&mainFlag)throw "Repeating main";
             funcArray[funcCount].funcName=secondWord(line);
             funcArray[funcCount++].byteOffsetInResolveBin=offsetField;
+            if(funcCount>MAX_FUNCS)throw "Exceeded maxFuncton limit";
             int64_t _offset=writeResolveRecord(out,offsetField,line);    
             offsetField+=8+4+line.size();            
         }
@@ -370,6 +371,7 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
             if(f)continue;
             patches[patchCount].targetFuncName=w2;
             patches[patchCount++].byteOffsetOfOffsetField=offsetField;
+            if(patchCount>MAX_PATCHES)throw "Exceeded maxPatch limit";
             int64_t _offset=writeResolveRecord(out,offsetField,line);    
             offsetField+=8+4+line.size();
             
@@ -450,8 +452,9 @@ int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
     count++;
     while(line[i]!=0){
         word="";
-        if(count>=maxTokens)return count;
         while(line[i]==' ')i++;
+        if(line[i]==0)break;
+        if(count>=maxTokens)throw "max Token already reached";
         while(line[i]!=' '&&line[i]!=0)word+=line[i++];
         tokens[count].type=PARAM;
         tokens[count].text=word;
@@ -486,11 +489,13 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
     readResolveRecord(in,line);
     cout<<line<<endl;
     
+    
     Token tokens[MAX_TOKENS];
     int32_t tokenCount=0;
     while(true){
         int64_t lineOffsetByte = ftell(in);
         int64_t offsetbyte = readResolveRecord(in,line);
+        cout<<line<<endl;
         tokenCount = tokenizeLine(line,tokens,MAX_TOKENS);
         string key =tokens[0].text;
         timeline.record(buildSnapshot(callStack));
@@ -516,10 +521,11 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
                 }
             }
             if(flag)continue;
+            
             if(current.localCount>=MAX_VARS_PER_FRAME)throw "cant add more variable";
             current.locals[current.localCount].name=var;
             current.locals[current.localCount++].value=value;
-
+            
         }
         else if(key=="add"){
             if(tokenCount!=3)throw "wrong add instruction";
@@ -747,7 +753,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
         }
         else if(key=="call"){
             if(tokenCount<2) throw "invalid instruction";
-
+            if(tokenCount-2>MAX_VARS_PER_FRAME)throw "can add more variable than the max cap";
             int32_t newArgV[MAX_VARS_PER_FRAME];
             int32_t newArgCount=0;
             bool flag=0;
@@ -791,7 +797,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
             callStack.push(temp);
         }
         else{
-            break;
+            throw "Wrong keyword used";
         }
 
 
@@ -877,7 +883,7 @@ int32_t main()
         cout<<"compile starting"<<endl;
         if (!validateProgram("source.bin"))
         {
-            throw "program has nested function or a end function line is present without the start line";
+            throw "program has nested function or a end function line is present without the start line or no endline for a function";
         }
         int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
 
@@ -891,4 +897,4 @@ int32_t main()
         return 1;
     }
     return 0;
-}`
+}
