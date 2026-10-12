@@ -242,7 +242,7 @@ bool readSourceLine(ifstream &in, string &out)
 string firstWord(const string &line)
 {
     string word;
-    for(int i =0;line[i]!=' '&&line[i]!=0;i++)word+=line[i];
+    for(int i =0;line[i]!=' '&&line[i]!=0&&line[i]!='\t';i++)word+=line[i];
     return word;
     
 }
@@ -250,12 +250,12 @@ string secondWord(const string &line)
 {
     string word2;
     int i=0;
-    while(line[i]!=' '&&line[i]!=0){
+    while(line[i]!=' '&&line[i]!=0&&line[i]!='\t'){
         i++;
     }
     if(line[i]==0)return "";
     i++;
-    while(line[i]!=' '&&line[i]!=0){
+    while(line[i]!=' '&&line[i]!=0&&line[i]!='\t'){
         word2+=line[i];
         i++;
     }
@@ -872,18 +872,23 @@ void writeTdbg(Timeline &timeline, const char *tdbgPath)
 // main section
 int32_t main()
 {
+    try{
+        
+        cout<<"compile starting"<<endl;
+        if (!validateProgram("source.bin"))
+        {
+            throw "program has nested function or a end function line is present without the start line";
+        }
+        int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
 
-    cout<<"compile starting"<<endl;
-    if (!validateProgram("source.bin"))
-    {
+        Timeline timeline;
+        executeProgram("resolve.bin", mainOffset, timeline);
+
+        writeTdbg(timeline, "session.tdbg");
+    }
+    catch (const char* error){
+        cerr << "Error: " << error << endl;
         return 1;
     }
-    int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
-
-    Timeline timeline;
-    executeProgram("resolve.bin", mainOffset, timeline);
-
-    writeTdbg(timeline, "session.tdbg");
-
     return 0;
-}
+}`

@@ -25,3 +25,5 @@ tomorrow:
 12-10-26
     implementing tdbg
     completing tdbg
+    fixing call issue
+    adding checks in pass0
