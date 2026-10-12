@@ -7,6 +7,16 @@
 //   3. Pass 0X2   -- execute resolve.bin: tokenize ONE line at a time, update the call stack, take a snapshot -> Timeline
 //   4. Pass 0X3   -- serialize Timeline -> session.tdbg(header + snapshot records + dense index)
 
+/*
+func foo b
+set a 10
+add b a
+func_end
+func main
+set k 10
+call foo k
+func_end
+*/
 
 #include <iostream>
 #include <string>
@@ -170,7 +180,8 @@ struct Frame
     int64_t returnLine;
     Variable locals[MAX_VARS_PER_FRAME];
     int32_t localCount;
-    
+    Frame():func_name(""),argc(0),argv{0},returnLine(-1),locals{0},localCount(0){}
+
     Frame(string name,int32_t argC=0,int64_t offset=-1,int32_t localC=0):func_name(name),argc(argC),returnLine(offset),localCount(localC){}
 };
 struct Snapshot
@@ -455,13 +466,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
 
     Stack<Frame> callStack;
 
-    
-    Frame mainFrame;
-    mainFrame.func_name="main";
-    mainFrame.argc=0;
-    mainFrame.localCount=0;
-    mainFrame.returnLine=-1;
-
+    Frame mainFrame("main",0,-1,0);
     
     callStack.push(mainFrame);
     
@@ -473,10 +478,10 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
     int32_t tokenCount=0;
     while(true){
         int64_t offsetbyte = readResolveRecord(in,line);
-        tokenizeLine(line,tokens,MAX_TOKENS);
+        tokenCount = tokenizeLine(line,tokens,MAX_TOKENS);
         string key =tokens[0].text;
         if(key=="set"){
-            if(token!=3)throw "wrong set instruction";
+            if(tokenCount!=3)throw "wrong set instruction";
             Frame &current=callStack.peek();
             string var=tokens[1].text;
             int32_t value=stoi(tokens[2].text);
@@ -503,7 +508,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
 
         }
         else if(key=="add"){
-            if(token!=3)throw "wrong add instruction";
+            if(tokenCount!=3)throw "wrong add instruction";
             Frame &current=callStack.peek();
             string var1=tokens[1].text;
             string var2=tokens[2].text;
@@ -548,7 +553,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
 
         }
         else if(key=="sub"){
-            if(token!=3)throw "wrong sub instruction";
+            if(tokenCount!=3)throw "wrong sub instruction";
             Frame &current=callStack.peek();
             string var1=tokens[1].text;
             string var2=tokens[2].text;
@@ -593,7 +598,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
 
         }
         else if(key=="mul"){
-            if(token!=3)throw "wrong add instruction";
+            if(tokenCount!=3)throw "wrong add instruction";
             Frame &current=callStack.peek();
             string var1=tokens[1].text;
             string var2=tokens[2].text;
@@ -638,7 +643,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
 
         }
         else if(key=="div"){
-            if(token!=3)throw "wrong add instruction";
+            if(tokenCount!=3)throw "wrong add instruction";
             Frame &current=callStack.peek();
             string var1=tokens[1].text;
             string var2=tokens[2].text;
@@ -669,7 +674,7 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
                 }
                 if(current.locals[i].name==var2){
                     Var2= &current.locals[i];
-                    if(current.argv[i].value==0)throw"IllEGAL OPERATION DIVIDING BY ZERO";
+                    if(current.locals[i].value==0)throw"IllEGAL OPERATION DIVIDING BY ZERO";
                     flag2=1;
                 }
                 if(flag1&&flag2)break;
@@ -688,23 +693,59 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
             continue;
         }
         else if(key=="func_end"){
+            if(callStack.depth()==1){
+                break;
+            }
+            
+            int64_t callOffset=callStack.peek().returnLine;
+            callStack.pop();
+            if(fseek(in,callOffset,SEEK_SET)) throw"cant go back to caller";
             
         }
         else if(key=="call"){
             if(tokenCount<2) throw "invalid instruction";
-            int32_t value[tokenCount-2];
-            for(int i=0;i<tokenCount-1;i++){
-                value[i]=stoi(tokens[i+2].text);
-            }
-            fseek(in,offsetbyte,SEEK_SET);
-            int64_t offsetbyte = readResolveRecord(in,line);
-            tokenizeLine(line,tokens,MAX_TOKENS);
-            string functionName=tokens[1].text;
-            Frame temp(tokens[1],tokenCount-2,offsetbyte,0);
-            for(int i = 0; i<tokenCount-1;i++){
 
+            int32_t newArgV[MAX_VARS_PER_FRAME-2];
+            int32_t newArgCount=0;
+            bool flag=0;
+            
+            for(int i=0;i<tokenCount-2;i++){
+                flag=0;
+                string tempVar=tokens[i+2].text;
+                Frame &current=callStack.peek();
+                for(int j=0;j<current.argc;j++){
+                    if(current.argv[j].name==tempVar){
+                        newArgV[newArgCount++]=current.argv[j].value;
+                        flag=1;
+                        break;
+                    }
+                }
+                if(flag)continue;
+                for(int j=0;j<current.localCount;j++){
+                    if(current.locals[j].name==tempVar){
+                        newArgV[newArgCount++]=current.locals[j].value;
+                        flag=1;
+                        break;
+                    }
+                }
+                if(!flag)throw "Call argument not found";
             }
             
+            int32_t previousCallTokenCount=tokenCount;
+            
+            int64_t nextLineOffset=ftell(in);
+            if(fseek(in,offsetbyte,SEEK_SET))throw "function not found";
+            offsetbyte = readResolveRecord(in,line);
+            tokenCount=tokenizeLine(line,tokens,MAX_TOKENS);
+            if(previousCallTokenCount!=tokenCount)throw"call paramerters dont match function parameter";
+            
+            Frame temp(tokens[1].text,tokenCount-2,nextLineOffset,0);
+            
+            for(int i = 0; i<tokenCount-2;i++){
+                temp.argv[i].name=tokens[i+2].text;
+                temp.argv[i].value=newArgV[i];
+            }
+            callStack.push(temp);
         }
         else{
             break;
