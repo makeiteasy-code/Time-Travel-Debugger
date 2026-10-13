@@ -24,7 +24,9 @@ tomorrow:
 
 12-10-26
     implementing tdbg
+12/13-10-26
     completing tdbg
     fixing call issue
     adding checks in 
     finalizing
+    completing bonus

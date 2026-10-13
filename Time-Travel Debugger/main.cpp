@@ -22,8 +22,13 @@ func_end
 #include <string>
 #include <cstdint>
 #include <fstream>
-#include <unistd.h>
-#include <sys/socket.h>
+#ifdef _WIN32
+    #include <ws2tcpip.h>
+    #include <winsock2.h>
+#else
+    #include <unistd.h>
+    #include <sys/socket.h>
+#endif
 #include <cstdio>
 using namespace std;
 
@@ -418,7 +423,7 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
 }
 
 // PASS 0x2: EXECUTION (tokenization happens here)
-enum TokenType
+enum tokenType
 {
     KEYWORD,
     IDENTIFIER,
@@ -426,7 +431,7 @@ enum TokenType
 };
 struct Token
 {
-    TokenType type;
+    tokenType type;
     string text;
 };
 int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
